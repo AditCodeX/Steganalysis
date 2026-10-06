@@ -6,6 +6,7 @@ with a 32-bit length header for deterministic, error-free extraction.
 
 import argparse
 import sys
+import os
 import numpy as np
 from PIL import Image
 
@@ -57,7 +58,7 @@ class Steganography:
             print(f"[-] Encoding error: {e}", file=sys.stderr)
             return False
 
-    def decode(self, stego_image: str) -> str:
+    def decode(self, stego_image: str, output_file: str = None) -> str:
         """
         Extracts a hidden message by reading the 32-bit prefix header first.
         """
@@ -101,6 +102,12 @@ class Steganography:
 
             print(f"[+] Decoded message ({len(decoded_text)} chars):")
             print(f"    \"{decoded_text}\"")
+
+            if output_file:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(decoded_text)
+                print(f"[+] Extracted message saved to file: {output_file}")
+
             return decoded_text
         except Exception as e:
             print(f"[-] Decoding error: {e}", file=sys.stderr)
@@ -111,17 +118,25 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     enc_parser = subparsers.add_parser("encode", help="Hide a secret text message inside an image.")
-    enc_parser.add_argument("-i", "--input", required=True, help="Input carrier image path.")
-    enc_parser.add_argument("-m", "--message", required=True, help="Secret message to hide.")
+    enc_parser.add_argument("-i", "--input", required=True, help="Input carrier image path (lossless PNG/BMP).")
+    enc_group = enc_parser.add_mutually_exclusive_group(required=True)
+    enc_group.add_argument("-m", "--message", help="Secret text string to hide.")
+    enc_group.add_argument("-f", "--file", help="Path to text file containing the secret message.")
     enc_parser.add_argument("-o", "--output", required=True, help="Output stego image path.")
 
     dec_parser = subparsers.add_parser("decode", help="Extract a hidden message from a stego image.")
     dec_parser.add_argument("-i", "--input", required=True, help="Input stego image path.")
+    dec_parser.add_argument("-o", "--output", help="Optional text file path to save extracted message.")
 
     args = parser.parse_args()
     engine = Steganography()
 
     if args.command == "encode":
-        engine.encode(args.input, args.message, args.output)
+        if args.file:
+            with open(args.file, 'r', encoding='utf-8') as f:
+                secret_msg = f.read()
+        else:
+            secret_msg = args.message
+        engine.encode(args.input, secret_msg, args.output)
     elif args.command == "decode":
-        engine.decode(args.input)
+        engine.decode(args.input, output_file=args.output)

@@ -5,6 +5,7 @@ and stego (label 1) classes to enable end-to-end model training and testing.
 """
 
 import os
+import argparse
 import numpy as np
 from PIL import Image
 from stego_engine import Steganography
@@ -61,4 +62,9 @@ def create_synthetic_dataset(output_dir: str = "dataset", num_samples_per_class:
     print(f"[+] Successfully created sample dataset in '{output_dir}/'.")
 
 if __name__ == "__main__":
-    create_synthetic_dataset()
+    parser = argparse.ArgumentParser(description="Generate synthetic clean and stego training pairs.")
+    parser.add_argument("-n", "--num-samples", type=int, default=20, help="Number of samples per class (default: 20).")
+    parser.add_argument("-o", "--output", default="dataset", help="Output directory path (default: 'dataset').")
+    args = parser.parse_args()
+
+    create_synthetic_dataset(output_dir=args.output, num_samples_per_class=args.num_samples)
