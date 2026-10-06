@@ -9,8 +9,8 @@
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Security Focus: Forensics](https://img.shields.io/badge/domain-digital%20forensics-red.svg)](https://github.com/AditCodeX)
 
-**An open-source digital image steganography engine and forensic steganalysis suite.**  
-Covers offensive sequential LSB embedding and defensive forensic countermeasures (visual bit-plane attacks and supervised ML classification).
+**Engine steganografi gambar digital dan suite steganalisis forensik open-source.**  
+Mencakup sisi offensive (penyisipan sekuensial LSB) dan sisi defensive/forensik (visual bit-plane attack serta klasifikasi Machine Learning).
 
 <br/>
 
@@ -25,21 +25,21 @@ Covers offensive sequential LSB embedding and defensive forensic countermeasures
 
 ---
 
-## 1. System Architecture & Capabilities
+## 1. Arsitektur Sistem & Kemampuan Modul
 
-| Module | Pipeline Role | Primary Function | Core Technology |
+| Modul | Peran Pipeline | Fungsi Utama | Teknologi Inti |
 | :--- | :--- | :--- | :--- |
-| **`stego_engine.py`** | Offensive / Covert Channel | Embeds & recovers UTF-8 payloads with 32-bit length headers | Bitwise masking `(Pixel & 0xFE) \| bit` |
-| **`visualize_lsb.py`** | Defensive / Visual Forensics | Exposes high-frequency noise bands in the LSB plane | Modulo-2 slicing `(Pixel % 2) * 255` |
-| **`utils.py`** | Feature Engineering | Extracts 12-dimensional spatial & statistical correlation vectors | $\Delta\text{LSB}$ transitions & prefix density |
-| **`latih_model.py`** | Machine Learning | Trains supervised classifiers to distinguish clean vs stego images | Decision Tree & Gaussian Naive Bayes |
-| **`prediksi.py`** | Automated Inference | Scans target images and outputs a verified forensic verdict | Serialized `.joblib` model query |
+| **`stego_engine.py`** | Offensive / Covert Channel | Menyisipkan & mengekstrak payload UTF-8 dengan header panjang 32-bit | Bitwise masking `(Pixel & 0xFE) \| bit` |
+| **`visualize_lsb.py`** | Defensive / Visual Forensics | Mengekspos pita noise frekuensi tinggi pada bit-plane LSB | Modulo-2 slicing `(Pixel % 2) * 255` |
+| **`utils.py`** | Feature Engineering | Mengekstrak 12 vektor fitur korelasi spasial & statistik | Transisi $\Delta\text{LSB}$ & kerapatan prefix |
+| **`latih_model.py`** | Machine Learning | Melatih model classifier untuk membedakan gambar bersih vs stego | Decision Tree & Gaussian Naive Bayes |
+| **`prediksi.py`** | Automated Inference | Memindai target gambar dan memberikan hasil analisis forensik | Kueri model terserialisasi `.joblib` |
 
 ---
 
-## 2. Visual Attack Forensic Demonstration
+## 2. Demonstrasi Forensik Visual Attack
 
-In sequential LSB steganography, secret payloads are imperceptible to human eyes ($>58\text{ dB}$ PSNR). However, isolating the least significant bit plane ($Bit = \text{Pixel} \pmod 2$) scaled to full contrast ($0 \rightarrow 0, 1 \rightarrow 255$) immediately exposes the injected data as a distinct high-entropy noise band:
+Pada steganografi LSB sekuensial, pesan rahasia tidak terlihat oleh mata manusia secara visual ($>58\text{ dB}$ PSNR). Namun, dengan mengisolasi bit-plane LSB ($Bit = \text{Pixel} \pmod 2$) dan diskalakan ke kontras penuh ($0 \rightarrow 0, 1 \rightarrow 255$), data yang disisipkan langsung terlihat jelas sebagai pita noise berdensitas tinggi:
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/AditCodeX/Steganalysis/main/assets/visual_attack_comparison.png" alt="LSB Bit-Plane Visual Attack Diagnostic Comparison" width="100%" />
@@ -47,102 +47,102 @@ In sequential LSB steganography, secret payloads are imperceptible to human eyes
 
 ---
 
-## 3. How It Works (Technical Summary)
+## 3. Cara Kerja Teknis
 
-### A. 32-Bit Length Prefix Framing
-Traditional steganography uses delimiter characters (e.g., `\0` or `EOF`), which trigger premature terminations when payloads contain binary zero bytes. This engine prepends a **32-bit fixed-width binary header** ($L$ bits), enabling deterministic, corruption-free payload recovery:
+### A. Framing 32-Bit Length Prefix
+Steganografi konvensional umumnya mengandalkan karakter delimiter (seperti `\0` atau `EOF`), yang rentan memicu terminasi dini jika payload memuat biner nol. Engine ini menyisipkan **32-bit fixed-width binary header** ($L$ bit) di awal payload, memastikan proses recovery data berjalan deterministik dan bebas korupsi:
 
 ```text
 Bitstream = [32-Bit Header (Length L)] + [UTF-8 Payload (L Bits)]
 ```
 
-### B. 12-Dimensional Forensic Feature Indicators
+### B. 12 Indikator Fitur Forensik
 
-Automated detection uses 12 numerical indicators that separate natural image correlation from steganographic tampering:
+Deteksi otomatis memanfaatkan 12 indikator numerik untuk membedakan korelasi alami gambar dari anomali modifikasi steganografi:
 
-| Feature Index | Indicator Name | Forensic Significance & Mechanism | Expected Baseline |
+| Indeks Fitur | Nama Indikator | Mekanisme & Signifikansi Forensik | Nilai Ekspektasi Baseline |
 | :--- | :--- | :--- | :--- |
-| **F1 – F2** | **Header Bit Densities** | Mean bit density across the first 32 and 256 pixels | Clusters of leading zeros vs ~0.50 in natural images |
-| **F3** | **Leading Zero Run** | Number of consecutive zero bits starting from bit 0 | 15–25 zeros indicates 32-bit integer length prefix |
-| **F4 – F9** | **RGB Channel Moments** | Global mean and standard deviation per channel (R, G, B) | Detects global LSB parity shifts across color planes |
-| **F10 – F11** | **Spatial ΔLSB Transitions** | Horizontal & vertical adjacent bit-flip frequency | Random stego flips approach ~0.50 transition rate |
-| **F12** | **Local Discrepancy Metric** | Difference between head and tail transition rates (`\|Rate_head - Rate_tail\|`) | ~0 for natural photos; elevated for stego carriers |
+| **F1 – F2** | **Header Bit Densities** | Rata-rata densitas bit pada 32 dan 256 piksel pertama | Klaster leading zeros vs ~0.50 pada gambar alami |
+| **F3** | **Leading Zero Run** | Jumlah bit 0 berurutan mulai dari bit 0 | 15–25 nol menandakan prefix panjang data 32-bit |
+| **F4 – F9** | **RGB Channel Moments** | Rata-rata global dan standar deviasi per channel (R, G, B) | Mendeteksi pergeseran paritas LSB antar channel warna |
+| **F10 – F11** | **Spatial ΔLSB Transitions** | Frekuensi flip bit antar piksel tetangga horizontal & vertikal | Bit acak stego mendekati laju transisi ~0.50 |
+| **F12** | **Local Discrepancy Metric** | Selisih laju transisi blok head modifikasi vs blok tail asli (`\|Rate_head - Rate_tail\|`) | ~0 pada foto alami; meningkat drastis pada carrier stego |
 
 ---
 
-## 4. Quickstart & Command Line Usage
+## 4. Panduan Penggunaan & CLI
 
-### Installation
+### Instalasi Lingkungan
 ```bash
 git clone https://github.com/AditCodeX/Steganalysis.git
 cd Steganalysis
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Di Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 1. Hide & Extract Secret Messages
+### 1. Menyembunyikan & Mengekstrak Pesan Rahasia
 ```bash
-# Hide message
+# Sembunyikan pesan ke dalam gambar
 python stego_engine.py encode -i carrier.png -m "TOP_SECRET: Coordinates 0x7FA4" -o stego.png
 
-# Extract message
+# Ekstrak pesan dari gambar stego
 python stego_engine.py decode -i stego.png
 ```
 
-### 2. Inspect LSB Bit-Plane Visually
+### 2. Inspeksi Visual Bit-Plane LSB
 ```bash
-# Generate visual diagnostic plot
+# Buat laporan grafik visual attack (disimpan ke file)
 python visualize_lsb.py -i stego.png -o visual_report.png --no-show
 ```
 
-### 3. Machine Learning Forensic Pipeline
+### 3. Pipeline Forensik Machine Learning
 ```bash
-# 1. Generate clean & stego training pairs
+# 1. Generate sampel dataset sintetis (bersih & stego)
 python create_samples.py
 
-# 2. Extract 12D features to dataset.npz
+# 2. Ekstrak 12 fitur dan kompilasi ke dataset.npz
 python buat_dataset.py
 
-# 3. Train Decision Tree & Naive Bayes classifiers
+# 3. Latih model Decision Tree & Naive Bayes
 python latih_model.py
 
-# 4. Predict an unknown target image
+# 4. Prediksi gambar target yang mencurigakan
 python prediksi.py target_image.png
 ```
 
-### 4. Single-Command Automated Verification
+### 4. Verifikasi Otomatis Sekali Jalan
 ```bash
 python demo.py
 ```
 
-*Executes the entire 6-phase pipeline end-to-end, evaluates test set accuracy (100.0%), and verifies full payload reconstruction.*
+*Mengeksekusi seluruh 6 fase pipeline secara end-to-end, mengevaluasi akurasi data uji (100.0%), dan memverifikasi rekonstruksi payload secara utuh.*
 
 ---
 
-## 5. Repository Structure
+## 5. Struktur Repositori
 
 ```
 Steganalysis/
 ├── assets/
-│   ├── architecture_dark.png        # System architecture diagram (Dark theme)
-│   ├── architecture_light.png       # System architecture diagram (Light theme)
-│   └── visual_attack_comparison.png # Side-by-side visual attack comparison
-├── stego_engine.py                  # LSB encoder & decoder with 32-bit header framing
-├── visualize_lsb.py                 # LSB bit-plane visual attack extractor & plot tool
-├── utils.py                         # 12D spatial correlation & statistical feature extractor
-├── buat_dataset.py                  # Batch feature extractor compiling to dataset.npz
-├── create_samples.py                # Synthetic clean & stego dataset generator
-├── latih_model.py                   # Model trainer for Decision Tree & Gaussian Naive Bayes
-├── prediksi.py                      # Target image classifier CLI
-├── demo.py                          # Automated end-to-end verification script
-├── requirements.txt                 # Runtime dependencies
+│   ├── architecture_dark.png        # Diagram arsitektur sistem (Dark theme)
+│   ├── architecture_light.png       # Diagram arsitektur sistem (Light theme)
+│   └── visual_attack_comparison.png # Perbandingan visual attack side-by-side
+├── stego_engine.py                  # LSB encoder & decoder dengan framing header 32-bit
+├── visualize_lsb.py                 # Ekstraktor visual bit-plane & tool plot visual attack
+├── utils.py                         # Ekstraktor 12 fitur korelasi spasial & statistik
+├── buat_dataset.py                  # Kompiler dataset dari direktori gambar ke dataset.npz
+├── create_samples.py                # Generator dataset sintetis untuk pengujian
+├── latih_model.py                   # Trainer model Decision Tree & Gaussian Naive Bayes
+├── prediksi.py                      # CLI inference untuk analisis gambar target
+├── demo.py                          # Skrip verifikasi end-to-end otomatis
+├── requirements.txt                 # Dependensi pustaka Python
 └── LICENSE                          # GNU General Public License v3.0
 ```
 
 ---
 
-## 6. Author & License
+## 6. Pengembang & Lisensi
 
-Developed by **[AditCodeX](https://github.com/AditCodeX)**.  
-Licensed under the **[GNU General Public License v3.0](LICENSE)**.
+Dikembangkan oleh **[AditCodeX](https://github.com/AditCodeX)**.  
+Dilisensikan di bawah **[GNU General Public License v3.0](LICENSE)**.
