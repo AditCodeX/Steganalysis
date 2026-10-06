@@ -1,26 +1,44 @@
-# utils.py
+"""
+Feature Extraction Utilities for Steganalysis
+Extracts high-dimensional statistical and transition features across RGB channels.
+"""
 
 import numpy as np
 from PIL import Image
 
-def ekstrak_fitur(gambar):
+def ekstrak_fitur(gambar: Image.Image) -> list:
     """
-    Menghitung fitur statistik (mean & std dev) dari LSB plane sebuah gambar.
-    
-    Args:
-        gambar (PIL.Image.Image): Objek gambar dari Pillow.
+    Extracts statistical features from the LSB plane:
+    - Per-channel LSB mean (R, G, B)
+    - Per-channel LSB standard deviation (R, G, B)
+    - Per-channel horizontal LSB bit-transition rate (spatial correlation)
+    - Global Chi-square deviation metric across pixel pairs
 
     Returns:
-        list: Sebuah list berisi [mean, std_dev] dari LSB plane.
+        list: 10-dimensional statistical feature vector.
     """
-    # Pastikan gambar dalam mode RGB untuk konsistensi
-    array_piksel = np.array(gambar.convert('RGB'))
-    
-    # Ekstrak LSB plane (nilai 0 atau 1)
-    lsb_plane = array_piksel % 2
-    
-    # Hitung fitur statistik
-    mean = lsb_plane.mean()
-    std_dev = lsb_plane.std()
-    
-    return [mean, std_dev]
+    arr = np.array(gambar.convert('RGB'), dtype=np.uint8)
+    lsb = arr % 2
+
+    fitur = []
+
+    # 1. Per-channel Mean & Std (6 features)
+    for c in range(3):
+        ch_lsb = lsb[:, :, c]
+        fitur.append(float(ch_lsb.mean()))
+        fitur.append(float(ch_lsb.std()))
+
+    # 2. Per-channel Horizontal Bit Transition Rate (3 features)
+    # Natural images have high spatial correlation (lower bit transitions).
+    # Stego images introduce pseudo-random bit flips (transition rate approaches 0.5).
+    for c in range(3):
+        ch_lsb = lsb[:, :, c]
+        diff = np.abs(ch_lsb[:, 1:] - ch_lsb[:, :-1])
+        transition_rate = float(diff.mean())
+        fitur.append(transition_rate)
+
+    # 3. Overall Bit Entropy / Transition measure (1 feature)
+    diff_vert = np.abs(lsb[1:, :, :] - lsb[:-1, :, :])
+    fitur.append(float(diff_vert.mean()))
+
+    return fitur

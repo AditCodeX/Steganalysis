@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Generated datasets and models
+*.joblib
+*.npz
+dataset/
+dataset_demo/
+lsb_visual_*.png
+stego_*.png
+
+# Virtual environments
+.venv/
+env/
+venv/
