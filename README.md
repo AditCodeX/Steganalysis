@@ -52,16 +52,21 @@ In sequential LSB steganography, secret payloads are imperceptible to human eyes
 ### A. 32-Bit Length Prefix Framing
 Traditional steganography uses delimiter characters (e.g., `\0` or `EOF`), which trigger premature terminations when payloads contain binary zero bytes. This engine prepends a **32-bit fixed-width binary header** ($L$ bits), enabling deterministic, corruption-free payload recovery:
 
-$$\text{Bitstream} = \text{Header}_{\text{32-bit}}(L) \ + \ \text{Payload}_{\text{UTF-8}}(L)$$
+```text
+Bitstream = [32-Bit Header (Length L)] + [UTF-8 Payload (L Bits)]
+```
 
-### B. 12-Dimensional Forensic Feature Vector
+### B. 12-Dimensional Forensic Feature Indicators
+
 Automated detection uses 12 numerical indicators that separate natural image correlation from steganographic tampering:
-1. **Header Bit Densities ($F_1, F_2$):** Mean bit density across the first 32 and 256 bits. Natural images have balanced parity ($\approx 0.50$); length headers introduce clusters of leading zeros.
-2. **Leading Zero Run Length ($F_3$):** Consecutive zero bits from bit 0 (typical signature of integer length prefixes).
-3. **Channel Moments ($F_4 \dots F_9$):** Global mean and standard deviation across R, G, and B planes.
-4. **Spatial Bit-Transition Rates ($F_{10}, F_{11}$):** Horizontal and vertical adjacent bit-flip rates ($\Delta\text{LSB}$):
-   $$\Delta\text{LSB}_{\text{horiz}} = \frac{1}{H(W-1)} \sum_{y=0}^{H-1} \sum_{x=0}^{W-2} |\text{LSB}(y, x+1) - \text{LSB}(y, x)|$$
-5. **Local Discrepancy Metric ($F_{12}$):** Transition rate difference between the modified head block and untouched carrier tail ($\delta_{\text{local}} = |\text{Rate}_{\text{head}} - \text{Rate}_{\text{tail}}|$).
+
+| Feature Index | Indicator Name | Forensic Significance & Mechanism | Expected Baseline |
+| :--- | :--- | :--- | :--- |
+| **F1 – F2** | **Header Bit Densities** | Mean bit density across the first 32 and 256 pixels | Clusters of leading zeros vs ~0.50 in natural images |
+| **F3** | **Leading Zero Run** | Number of consecutive zero bits starting from bit 0 | 15–25 zeros indicates 32-bit integer length prefix |
+| **F4 – F9** | **RGB Channel Moments** | Global mean and standard deviation per channel (R, G, B) | Detects global LSB parity shifts across color planes |
+| **F10 – F11** | **Spatial ΔLSB Transitions** | Horizontal & vertical adjacent bit-flip frequency | Random stego flips approach ~0.50 transition rate |
+| **F12** | **Local Discrepancy Metric** | Difference between head and tail transition rates (`\|Rate_head - Rate_tail\|`) | ~0 for natural photos; elevated for stego carriers |
 
 ---
 
