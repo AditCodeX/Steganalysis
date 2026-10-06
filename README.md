@@ -1,158 +1,221 @@
 # Steganalysis Toolkit
 
-An open-source digital image steganography and forensic steganalysis suite built with Python, NumPy, and Scikit-Learn. Provides end-to-end tooling for sequential Least Significant Bit (LSB) message injection, bit-plane visual attack inspection, and statistical machine learning classification.
+<div align="center">
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![NumPy](https://img.shields.io/badge/numpy-2.0+-green.svg)](https://numpy.org/)
+[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-1.3+-orange.svg)](https://scikit-learn.org/)
+[![Pillow](https://img.shields.io/badge/pillow-10.0+-yellow.svg)](https://python-pillow.org/)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Security Focus: Forensics](https://img.shields.io/badge/domain-digital%20forensics-red.svg)](https://github.com/AditCodeX)
+
+**An open-source digital image steganography engine and forensic steganalysis suite.**  
+*Covers offensive sequential Least Significant Bit (LSB) embedding and defensive forensic countermeasures (visual bit-plane attacks and supervised machine learning classification).*
+
+</div>
 
 ---
 
-## Architecture Overview
+## 1. Project Overview
+
+The **Steganalysis Toolkit** provides a complete, dual-sided framework for analyzing digital image steganography:
+
+1. **Offensive Pipeline (Covert Communication):** Embeds and recovers arbitrary UTF-8 text data inside lossless carrier images (PNG) using sequential LSB manipulation. Uses a deterministic 32-bit length prefix framing technique to eliminate payload corruption.
+2. **Defensive Pipeline (Forensic Steganalysis):** Detects covert channels through both qualitative visual inspection (bit-plane slicing) and quantitative statistical analysis (12-dimensional spatial feature extraction combined with supervised Decision Tree and Gaussian Naive Bayes classifiers).
+
+### Problem Addressed
+Standard sequential LSB embedding introduces subtle pixel-level modifications that remain imperceptible to the human eye. However, the insertion of pseudo-random binary data disrupts the natural statistical and spatial correlation between neighboring pixels. This toolkit formalizes these anomalies into mathematically verifiable indicators, enabling automated detection of stego images with high classification accuracy.
+
+---
+
+## 2. Technical Architecture & How It Works
+
+The system operates across two distinct pipelines:
+
+```
+====================================================================================================
+                                    PIPELINE 1: STEGANOGRAPHY
+====================================================================================================
+
+  [Carrier Image] + [Secret Message]
+          |
+          v
+  [stego_engine.py]
+          |
+          +---> 1. Convert UTF-8 Text to Bitstream (8 bits / byte)
+          +---> 2. Prepend 32-bit Fixed-Width Binary Length Header
+          +---> 3. Sequential Bitwise Masking on RGB Pixels:
+                   Pixel' = (Pixel & 0xFE) | Bit
+          |
+          v
+  [Stego Image Output] (Visually Indistinguishable)
+
+
+====================================================================================================
+                                 PIPELINE 2: FORENSIC STEGANALYSIS
+====================================================================================================
+
+                     [Suspect Image Under Investigation]
+                                      |
+         +----------------------------+----------------------------+
+         |                                                         |
+         v                                                         v
+  [visualize_lsb.py]                                        [Feature Extraction: utils.py]
+  - Bit-Plane Extraction: Pixel % 2                         - Header Bit Densities (32 & 256 bits)
+  - Monochrome Scaling: 0 -> 0, 1 -> 255                    - Leading Zero Run Length
+  - Visual Artifact Detection                               - Per-Channel LSB Mean & Std Dev (R, G, B)
+         |                                                  - Spatial Delta-LSB Transition Rates
+         v                                                  - Local Head vs. Tail Discrepancy
+  [Dual-Pane Visual Report]                                        |
+                                                                   v
+                                                            [12D Feature Vector]
+                                                                   |
+                                                                   v
+                                                            [prediksi.py]
+                                                            Deserializes trained models:
+                                                            - DecisionTreeClassifier (model_dt.joblib)
+                                                            - GaussianNB (model_nb.joblib)
+                                                                   |
+                                                                   v
+                                                      Forensic Verdict Output:
+                                                      [Clean] vs. [Stego (Hidden Data)]
+                                                                   |
+                                                     (If Confirmed Stego & Recoverable)
+                                                                   v
+                                                        [stego_engine.py decode]
+                                                        Extracts 32-bit header -> reads L bits
+                                                                   v
+                                                        [Reconstructed Message]
+====================================================================================================
+```
+
+---
+
+## 3. How It Works: Component Breakdown
+
+### A. Steganography Engine (`stego_engine.py`)
+- **Binary Conversion:** Converts UTF-8 string characters into an 8-bit binary representation.
+- **32-Bit Length Prefix Framing:** Avoids null-byte delimiters (`\0`) which frequently corrupt when payloads contain binary zeros. Instead, it measures total bit length $L$ and prepends a 32-bit binary integer (`format(L, '032b')`).
+- **Sequential Pixel Substitution:** Modifies the least significant bit of each color channel sequentially starting from coordinate $(0, 0)$:
+  $$\text{Pixel}_{\text{stego}} = (\text{Pixel}_{\text{orig}} \ \& \ \text{0xFE}) \ | \ \text{Bit}$$
+- **Capacity Guard:** Enforces $\text{Length}_{\text{payload}} \le W \times H \times 3$ to prevent memory corruption or truncation.
+
+### B. Bit-Plane Visual Attack (`visualize_lsb.py`)
+- **LSB Plane Isolation:** Applies modulo-2 across all channels:
+  $$\text{LSB}(x, y, c) = \text{Pixel}(x, y, c) \pmod 2$$
+- **Contrast Normalization:** Scales bits to full 8-bit dynamic range ($0 \rightarrow 0$, $1 \rightarrow 255$).
+- **Forensic Diagnostic:** Natural images feature smooth spatial gradients in the LSB plane. Sequentially injected stego images exhibit a distinct horizontal band of uniform high-frequency noise at the top of the image where data bits reside, providing immediate visual proof of tampering.
+
+### C. 12-Dimensional Forensic Feature Extraction (`utils.py`)
+Extracts a 12-dimensional numerical vector capturing spatial and statistical shifts:
+1. **Header Bit Densities ($F_1, F_2$):** Mean bit density across the first 32 and 256 pixels. Clean natural images have mixed parity ($\approx 0.50$); a 32-bit integer length prefix introduces a dense cluster of leading zero bits.
+2. **Leading Zero Run Length ($F_3$):** Consecutive zeros starting from bit 0. A run of 15 to 25 zeros indicates the presence of a 32-bit integer length prefix for typical text lengths.
+3. **Channel Moments ($F_4$ to $F_9$):** Global mean and standard deviation of LSBs across individual Red, Green, and Blue planes.
+4. **Spatial Bit-Transition Rates ($F_{10}, F_{11}$):** Measures horizontal and vertical adjacent bit flips ($\Delta \text{LSB}$):
+   $$\Delta \text{LSB}_{\text{horiz}} = \frac{1}{H(W-1)} \sum_{y=0}^{H-1} \sum_{x=0}^{W-2} |\text{LSB}(y, x+1) - \text{LSB}(y, x)|$$
+   *Implemented using `int16` casting to prevent unsigned integer underflow (`0 - 1 = 255`).*
+5. **Local Discrepancy Metric ($F_{12}$):** Absolute difference in bit-transition rate between the modified head block (first 1,000 pixels) and untouched carrier tail (last 1,000 pixels):
+   $$\delta_{\text{local}} = |\text{Rate}_{\text{head}} - \text{Rate}_{\text{tail}}|$$
+   Natural images maintain consistent spatial noise across the canvas ($\delta_{\text{local}} \approx 0$). Sequential stego images show significant disparity.
+
+### D. Supervised Model Training (`latih_model.py`)
+- **Stratified Partition:** Splits dataset 80/20 into train/test sets, preserving class distribution.
+- **Dual Classifiers:**
+  - **Decision Tree (`DecisionTreeClassifier`):** Learns non-linear orthogonal splits based on leading zero counts and local transition discrepancies.
+  - **Gaussian Naive Bayes (`GaussianNB`):** Calculates conditional probability densities across statistical moments.
+- **Persistence:** Serializes trained model weights via `joblib` into `model_dt.joblib` and `model_nb.joblib`.
+
+### E. Target Inference (`prediksi.py`)
+- Ingests suspect target image via CLI.
+- Extracts the 12D feature vector in real time.
+- Queries both serialized models and outputs individual verdicts (`Bersih` vs `Tersembunyi`).
+
+---
+
+## 4. Repository File Structure
 
 ```
 Steganalysis/
-├── stego_engine.py      # LSB Injector & Extractor (32-bit length prefix framing)
-├── visualize_lsb.py     # LSB Bit-Plane Visual Attack analyzer
+├── stego_engine.py      # Core LSB encoder and decoder with 32-bit header framing
+├── visualize_lsb.py     # LSB bit-plane visual attack extractor & plot generator
 ├── utils.py             # 12-dimensional spatial & statistical feature extraction
-├── buat_dataset.py      # Batch feature extraction from clean/stego image directories
-├── create_samples.py    # Synthetic dataset generator for rapid testing
-├── latih_model.py       # Trains Decision Tree & Gaussian Naive Bayes classifiers
-├── prediksi.py          # Classifies unseen images as Clean or Stego (CLI inference)
-├── demo.py              # Automated end-to-end workflow demonstration
-├── requirements.txt     # Python dependencies
+├── buat_dataset.py      # Automated feature matrix builder from image directories
+├── create_samples.py    # Synthetic clean/stego dataset generator for test pipelines
+├── latih_model.py       # Trains and serializes Decision Tree & Naive Bayes models
+├── prediksi.py          # Command-line forensic classifier for target images
+├── demo.py              # Single-command end-to-end verification script
+├── requirements.txt     # Python runtime dependencies
+├── .gitignore           # Ignores compiled artifacts, models, and image outputs
 └── LICENSE              # GNU General Public License v3.0
 ```
 
 ---
 
-## End-to-End Project Workflow
-
-The toolkit operates across two primary pipelines: the **Steganography Pipeline** (payload hiding and extraction) and the **Forensic Steganalysis Pipeline** (visual inspection, feature extraction, and machine learning classification).
-
-```
-+---------------------------------------------------------------------------------------------------+
-|                                  1. STEGANOGRAPHY PIPELINE                                        |
-+---------------------------------------------------------------------------------------------------+
-  [Carrier Image] + [Secret Message]
-          |
-          v
-  [stego_engine.py] ──> UTF-8 to Binary ──> Prepend 32-bit Length Header ──> Sequential LSB Injection
-                                                                                     |
-                                                                                     v
-                                                                            [Stego Image Output]
-
-+---------------------------------------------------------------------------------------------------+
-|                                2. FORENSIC STEGANALYSIS PIPELINE                                  |
-+---------------------------------------------------------------------------------------------------+
-
-     [Stego / Unknown Image]
-                |
-                +───> [visualize_lsb.py] ─────────> LSB Extraction (% 2) ──> Scale (0->0, 1->255)
-                |                                                                  |
-                |                                                                  v
-                |                                                    [Dual-Pane Visual Attack Plot]
-                |
-                v
-        [create_samples.py] ───> Generates Clean Carriers & Stego Pairs
-                |
-                v
-         [buat_dataset.py]
-                |
-                +───> Calls [utils.py]
-                |       ├── Header bit density (first 32 & 256 bits)
-                |       ├── Consecutive leading zero run length
-                |       ├── Per-channel (R, G, B) LSB Mean & Std Dev
-                |       ├── Spatial bit-transition rates (Horizontal & Vertical Delta-LSB)
-                |       └── Local discrepancy (Modified Head vs Untouched Tail)
-                |
-                v
-         [dataset.npz] ───> Matrix: X (Samples x 12 Features), y (Labels: 0=Clean, 1=Stego)
-                |
-                v
-        [latih_model.py] ──> 80/20 Stratified Split ──> Trains Decision Tree & Gaussian Naive Bayes
-                |                                                 |
-                v                                                 v
-        [model_dt.joblib]                                 [model_nb.joblib]
-                |                                                 |
-                +───────────────────────┬─────────────────────────+
-                                        |
-                                        v
-                                 [prediksi.py]
-                                        |
-                                        v
-                           Forensic Output Decision:
-                        [Clean] vs [Stego (Hidden Data)]
-                                        |
-                                        v (If Stego Confirmed)
-                             [stego_engine.py decode]
-                                        |
-                                        v
-                            [Reconstructed Secret Message]
-```
-
----
-
-## Detailed Phase-by-Phase Flow Explanation
-
-### Phase 1: Payload Encoding & LSB Injection (`stego_engine.py`)
-1. **Binary Serialization:** The secret message string is converted into its UTF-8 byte representation, then converted to an 8-bit binary string.
-2. **Length Prefix Framing:** Rather than relying on fragile null-terminator bytes (`\0`) which risk collision with binary data, the engine measures the total payload bit-length $L$ and prepends a **32-bit fixed-width binary header** (`format(L, '032b')`).
-3. **Sequential Bit Embedding:** The combined stream (32-bit header + message bits) is sequentially written into the carrier's pixel array starting from coordinates $(0, 0)$. Each color channel's Least Significant Bit is updated using bitwise masking:
-   $$\text{Pixel}' = (\text{Pixel} \ \& \ \text{0xFE}) \ | \ \text{Bit}$$
-4. **Capacity Enforcement:** Before writing, carrier capacity ($W \times H \times 3$ bits) is validated against payload length to prevent buffer overruns.
-
-### Phase 2: Bit-Plane Visual Attack (`visualize_lsb.py`)
-1. **LSB Plane Isolation:** The image is converted to RGB array and filtered using the modulo-2 operation:
-   $$\text{LSB}(x, y, c) = \text{Pixel}(x, y, c) \pmod 2$$
-2. **Dynamic Range Scaling:** Extracted binary bits ($0$ and $1$) are scaled by $255$ to high-contrast monochrome values ($0 \rightarrow \text{Black}$, $1 \rightarrow \text{White}$).
-3. **Diagnostic Rendering:** Generates a dual-pane Matplotlib figure comparing the untouched original image against the high-frequency noise of the LSB plane. In sequential LSB steganography, a distinct textured horizontal band appears at the top rows where data was embedded, contrasting sharply with the natural smooth gradients of the rest of the image.
-
-### Phase 3: Spatial & Statistical Feature Extraction (`utils.py`)
-Sequential LSB steganography introduces statistical anomalies into the carrier's bit distribution. `utils.py` computes a **12-dimensional forensic feature vector**:
-1. **Header Prefix Density (2 features):** Computes mean bit density over the first 32 and 256 bits. Clean natural images have mixed parity ($\approx 0.50$), whereas the 32-bit integer length prefix introduces a dense cluster of leading zeros for typical message sizes.
-2. **Leading Zero Run Length (1 feature):** Counts consecutive zero bits from bit $0$. A run of 15–25 consecutive zeros strongly flags a 32-bit integer length header.
-3. **Per-Channel Global Moments (6 features):** Mean and standard deviation of LSBs across individual Red, Green, and Blue channels.
-4. **Spatial Bit-Transition Rates (2 features):** Measures the rate at which adjacent bits flip horizontally and vertically ($\Delta \text{LSB}$):
-   $$\Delta \text{LSB}_{\text{horiz}} = \frac{1}{H(W-1)} \sum_{y=0}^{H-1} \sum_{x=0}^{W-2} |\text{LSB}(y, x+1) - \text{LSB}(y, x)|$$
-   *Note: Calculations use `int16` casting to prevent unsigned integer underflow (`0 - 1 = 255`).*
-5. **Local Discrepancy Metric (1 feature):** Computes the absolute difference in transition rate between the modified head block (first 1,000 pixels) and the untouched carrier tail (last 1,000 pixels):
-   $$\delta_{\text{local}} = |\text{Rate}_{\text{head}} - \text{Rate}_{\text{tail}}|$$
-   Natural images maintain consistent spatial texture throughout, resulting in $\delta_{\text{local}} \approx 0$. Sequentially modified images exhibit high discrepancy.
-
-### Phase 4: Dataset Synthesis & Compilation (`create_samples.py` & `buat_dataset.py`)
-1. **Synthetic Carrier Generation (`create_samples.py`):** Generates natural-like images with continuous sinusoidal color gradients and realistic spatial noise distributions.
-2. **Class Pairing:** For each clean image (Label `0`), an identical carrier is embedded with a secret payload from a predefined test suite to create the stego sample (Label `1`).
-3. **Matrix Compilation (`buat_dataset.py`):** Iterates over `dataset/bersih` and `dataset/stego`, extracts 12-dimensional feature vectors via `utils.py`, and compresses them into `dataset.npz` containing feature matrix $X$ and ground-truth labels $y$.
-
-### Phase 5: Supervised Model Training (`latih_model.py`)
-1. **Stratified Partitioning:** Splits dataset into 80% training and 20% testing sets using stratified sampling to preserve class balance.
-2. **Dual Model Architecture:**
-   - **Decision Tree (`DecisionTreeClassifier`):** Learns non-linear orthogonal decision boundaries based on leading-zero runs and spatial bit-transition discrepancies.
-   - **Gaussian Naive Bayes (`GaussianNB`):** Evaluates Gaussian class conditional probabilities across statistical features.
-3. **Weight Serialization:** Evaluates accuracy metrics on the hold-out test set and serializes trained models to `model_dt.joblib` and `model_nb.joblib`.
-
-### Phase 6: Autonomous Target Inference (`prediksi.py`)
-1. Accepts an arbitrary suspect image path via CLI.
-2. Deserializes the trained `.joblib` models.
-3. Extracts the 12-dimensional feature vector in real time.
-4. Outputs independent classification verdicts from both Decision Tree and Naive Bayes (`Bersih` vs `Tersembunyi`).
-
-### Phase 7: Deterministic Payload Extraction (`stego_engine.py decode`)
-1. If an image is flagged as stego, `stego_engine.py decode` reads the first 32 bits from pixel $(0, 0)$.
-2. Converts the 32-bit sequence to integer $L$ (payload bit length).
-3. Reads exactly $L$ subsequent bits, packs them into 8-bit bytes, and decodes the string back to UTF-8 text without reading leftover carrier noise.
-
----
-
-## Quickstart & End-to-End Demo
-
-Run the automated demonstration to execute the entire 6-phase pipeline (sample generation $\rightarrow$ feature extraction $\rightarrow$ model training $\rightarrow$ visual attack $\rightarrow$ prediction $\rightarrow$ message extraction) in a single command:
+## 5. Installation & Setup
 
 ```bash
+# 1. Clone repository
 git clone https://github.com/AditCodeX/Steganalysis.git
 cd Steganalysis
+
+# 2. Set up virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
+```
+
+---
+
+## 6. Command Line Usage
+
+### A. Hide a Secret Message in an Image (Encode)
+```bash
+python stego_engine.py encode -i input_carrier.png -m "Classified Payload Alpha-01" -o stego_output.png
+```
+
+### B. Extract Secret Message from a Stego Image (Decode)
+```bash
+python stego_engine.py decode -i stego_output.png
+```
+
+### C. Perform LSB Visual Attack Inspection
+```bash
+# Generate side-by-side diagnostic plot and save to file
+python visualize_lsb.py -i stego_output.png -o visual_report.png --no-show
+
+# Interactive inspection window
+python visualize_lsb.py -i stego_output.png
+```
+
+### D. Full Machine Learning Steganalysis Pipeline
+
+```bash
+# Step 1: Generate synthetic clean and stego training pairs
+python create_samples.py
+
+# Step 2: Extract 12D features and compile to dataset.npz
+python buat_dataset.py
+
+# Step 3: Train and evaluate Decision Tree & Naive Bayes classifiers
+python latih_model.py
+
+# Step 4: Classify an unknown target image
+python prediksi.py target_image.png
+```
+
+---
+
+## 7. Verified End-to-End Demo Output
+
+Execute all 6 operational phases in a single automated run:
+
+```bash
 python demo.py
 ```
 
-### Verified Demo Output:
+### Real Execution Log:
 ```text
 =================================================================
   STEGANALYSIS TOOLKIT - END-TO-END DEMO
@@ -168,10 +231,13 @@ python demo.py
 Dataset berhasil dibuat dari 30 gambar dan disimpan di: dataset_demo.npz
 
 [Phase 3] Training Classifiers...
+Dataset dimuat. Total sampel: 30. Melatih dengan 24 sampel.
 --- Melatih Model Decision Tree ---
 Akurasi Decision Tree pada data uji: 100.00%
+Model Decision Tree disimpan di: model_dt.joblib
 --- Melatih Model Naive Bayes ---
 Akurasi Naive Bayes pada data uji: 100.00%
+Model Naive Bayes disimpan di: model_nb.joblib
 
 [Phase 4] Performing LSB Visual Attack...
 [+] LSB visual analysis saved to: lsb_visual_demo.png
@@ -195,49 +261,7 @@ Akurasi Naive Bayes pada data uji: 100.00%
 
 ---
 
-## Command Line Usage
-
-### 1. Hide a Secret Message (Encode)
-```bash
-python stego_engine.py encode -i carrier.png -m "TOP_SECRET: Coordinates 0x7FA4" -o stego_output.png
-```
-
-### 2. Extract Hidden Message (Decode)
-```bash
-python stego_engine.py decode -i stego_output.png
-```
-
-### 3. Visual LSB Attack Inspection
-```bash
-# Save visual analysis plot without opening GUI window
-python visualize_lsb.py -i stego_output.png -o visual_report.png --no-show
-
-# Interactive inspection with GUI window
-python visualize_lsb.py -i stego_output.png
-```
-
-### 4. Machine Learning Training & Inference Workflow
-
-1. **Generate Synthetic Training Samples:**
-   ```bash
-   python create_samples.py
-   ```
-2. **Compile Feature Matrix:**
-   ```bash
-   python buat_dataset.py
-   ```
-3. **Train Classifiers:**
-   ```bash
-   python latih_model.py
-   ```
-4. **Predict an Unseen Target Image:**
-   ```bash
-   python prediksi.py target_image.png
-   ```
-
----
-
-## Dependencies
+## 8. Dependencies
 
 - Python 3.9+
 - `Pillow >= 10.0.0`
@@ -249,6 +273,7 @@ python visualize_lsb.py -i stego_output.png
 
 ---
 
-## License
+## 9. Author & License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
+Developed by **[AditCodeX](https://github.com/AditCodeX)**.  
+Licensed under the **[GNU General Public License v3.0](LICENSE)**.
