@@ -47,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dataset", default="dataset.npz", help="Path file input dataset .npz (default: 'dataset.npz').")
     parser.add_argument("--output-dt", default="model_dt.joblib", help="Output path model Decision Tree (default: 'model_dt.joblib').")
     parser.add_argument("--output-nb", default="model_nb.joblib", help="Output path model Naive Bayes (default: 'model_nb.joblib').")
-    parser.add_argument("--test-size", type=float, default=0.2, help="Rasio data uji (default: 0.2 / 20%).")
+    parser.add_argument("--test-size", type=float, default=0.2, help="Rasio data uji (default: 0.2 / 20%%).")
     args = parser.parse_args()
 
     latih_dan_simpan_model(args.dataset, args.output_dt, args.output_nb, test_size=args.test_size)
