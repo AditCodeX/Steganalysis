@@ -35,6 +35,13 @@ class Steganography:
         """
         Embeds a secret string message into an image.
         """
+        out_ext = os.path.splitext(output_image)[1].lower()
+        if out_ext in ['.jpg', '.jpeg']:
+            suggested_png = os.path.splitext(output_image)[0] + '.png'
+            print(f"[-] Error: Format output '{out_ext}' tidak didukung karena kompresi JPEG bersifat lossy dan merusak bit LSB steganografi.", file=sys.stderr)
+            print(f"[!] Solusi: Harap gunakan format lossless seperti PNG. Ubah output ke '{suggested_png}'", file=sys.stderr)
+            return False
+
         try:
             img = Image.open(input_image).convert('RGB')
             arr = np.array(img, dtype=np.uint8)
@@ -62,10 +69,23 @@ class Steganography:
         """
         Extracts a hidden message by reading the 32-bit prefix header first.
         """
+        in_ext = os.path.splitext(stego_image)[1].lower()
+        if in_ext in ['.jpg', '.jpeg']:
+            print(f"[-] Error: File '{stego_image}' berformat JPEG/JPG (lossy). Kompresi JPEG merusak bit LSB sehingga pesan teracak.", file=sys.stderr)
+            print("    Pastikan Anda mendecode file stego asli berformat lossless (seperti .png).", file=sys.stderr)
+            return None
+
         try:
-            img = Image.open(stego_image).convert('RGB')
+            img = Image.open(stego_image)
+            if img.format in ['JPEG', 'MPO']:
+                print(f"[-] Error: File '{stego_image}' terdeteksi berformat {img.format} (lossy kompresi).", file=sys.stderr)
+                print("    LSB steganografi hanya kompatibel dengan format lossless (PNG/BMP).", file=sys.stderr)
+                return None
+
+            img = img.convert('RGB')
             arr = np.array(img, dtype=np.uint8)
             height, width, _ = arr.shape
+            max_carrier_bits = arr.size
 
             # 1. Extract first 32 bits for payload length
             header_bits = []
@@ -81,6 +101,13 @@ class Steganography:
                     break
 
             payload_len = int(''.join(header_bits), 2)
+            max_payload_bits = max_carrier_bits - 32
+
+            if payload_len <= 0 or payload_len > max_payload_bits:
+                print(f"[-] Error: Header payload_len tidak valid ({payload_len} bits, kapasitas maks carrier: {max_payload_bits} bits).", file=sys.stderr)
+                print("    Kemungkinan file bukan stego carrier atau bit LSB telah rusak akibat konversi/kompresi gambar.", file=sys.stderr)
+                return None
+
             total_target_bits = 32 + payload_len
 
             # 2. Extract payload bits
@@ -118,14 +145,14 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     enc_parser = subparsers.add_parser("encode", help="Hide a secret text message inside an image.")
-    enc_parser.add_argument("-i", "--input", required=True, help="Input carrier image path (lossless PNG/BMP).")
+    enc_parser.add_argument("-i", "--input", required=True, help="Input carrier image path (lossless PNG/BMP disarankan).")
     enc_group = enc_parser.add_mutually_exclusive_group(required=True)
     enc_group.add_argument("-m", "--message", help="Secret text string to hide.")
     enc_group.add_argument("-f", "--file", help="Path to text file containing the secret message.")
-    enc_parser.add_argument("-o", "--output", required=True, help="Output stego image path.")
+    enc_parser.add_argument("-o", "--output", required=True, help="Output stego image path (WAJIB lossless .png atau .bmp).")
 
     dec_parser = subparsers.add_parser("decode", help="Extract a hidden message from a stego image.")
-    dec_parser.add_argument("-i", "--input", required=True, help="Input stego image path.")
+    dec_parser.add_argument("-i", "--input", required=True, help="Input stego image path (.png lossless).")
     dec_parser.add_argument("-o", "--output", help="Optional text file path to save extracted message.")
 
     args = parser.parse_args()

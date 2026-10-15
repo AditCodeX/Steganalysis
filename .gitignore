@@ -15,3 +15,8 @@ stego_*.png
 .venv/
 env/
 venv/
+
+# Local testing artifacts
+hasil_ekstraksi.txt
+stego_output.*
+test.jpeg
